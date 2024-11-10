@@ -1,0 +1,211 @@
+<html>
+  <body onload="getAllShifts()">
+    <div style="width: 50%; margin: auto; background-color: #f0f0f0; padding: 20px;">
+      <div id="nameDiv"></div>
+      <div>Shifts:</div>
+      <table id="table" border="1"></table>
+      <br>
+      <br>
+
+
+      Create a new shift: <br />
+      <input type="date" id="date" placeholder="Date" /> <br />
+      <input type="time" id="startingHour" placeholder="Starting Hour" /> <br />
+      <input type="time" id="endingHour" placeholder="Ending Hour" /> <br />
+
+      <button onclick="createShift()">Create</button>
+
+      <br>
+      <br>
+
+      <label for="myDropdown">Assign / Unassign Shifts:</label>
+      <br>
+      <select id="myDropdown" name="options">
+      <option value="" disabled selected>Select employee</option>
+      </select>
+      <button onclick="navigate_To_Edit_Employees()">Submit</button>
+
+      <br>
+      <br>
+
+
+    <script>
+         const nameDiv = document.getElementById("nameDiv");
+      const name = sessionStorage.getItem("name");
+      const actionsLeft = sessionStorage.getItem("actionsLeft");
+      nameDiv.innerHTML = `Welcome, ${name}. <button onclick="logout()">Logout</button>  
+      <button onclick="goToMainPage()">Main Page</button> <br/> Actions left: ${actionsLeft} <br/><br />`; 
+
+      function goToMainPage() {
+        window.location.href = "./1- login.html";
+      }
+
+      function checkAuth() {
+        const token = sessionStorage.getItem("access_token");
+        if (!token) {
+          window.location.href = "./1- login.html";
+        }
+      }
+      
+      async function logout() {
+        sessionStorage.removeItem("access_token");
+        sessionStorage.removeItem("name"); 
+        sessionStorage.removeItem("userId");
+        window.location.href = "./1- login.html";
+        alert("Logged out");
+      }
+
+      async function forcelogout() {
+        sessionStorage.removeItem("access_token");
+        sessionStorage.removeItem("name");
+        sessionStorage.removeItem("userId");
+        window.location.href = "./1- login.html";
+        alert("Logged out");
+      }
+
+      async function minus_One_Action() {
+        const userId = sessionStorage.getItem("userId");
+        const response = await fetch(
+          `http://localhost:8000/login/users/${userId}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+        if (response.ok) {
+          const updatedUser = await response.json();
+          sessionStorage.setItem(
+            "actionsLeft",
+            updatedUser.data.numberOfActionsLeft
+          );
+          if (updatedUser.data.numberOfActionsLeft == 0) {
+            alert("You have no actions left. See you in 24 hours!.");
+            forcelogout();
+          }
+        } else {
+          console.error("Failed to update user actions");
+        }
+      }
+
+
+
+
+      async function getAllShifts() {
+    checkAuth()
+    const response = await fetch("http://localhost:8000/shifts");
+    const shifts = await response.json();
+    const response1 = await fetch("http://localhost:8000/employees");
+    const employees = await response1.json();
+    const table = document.getElementById("table");
+    
+
+    // Clear the table before appending new rows
+    table.innerHTML = `<th>Date</th> <th>Start Time</th> <th>End Time</th> <th>Edit</th>`;
+
+      
+    shifts.data.forEach((shift) => {
+        const tr = document.createElement("tr");
+        const tdDate = document.createElement("td");
+        const tdStartTime = document.createElement("td");
+        const tdEndTime = document.createElement("td");
+        const tdEditButton = document.createElement("td");
+
+        tdDate.innerHTML = shift.date;
+        tdStartTime.innerHTML = shift.startingHour;
+        tdEndTime.innerHTML = shift.endingHour;
+        tdEditButton.innerHTML = `<button onclick="navigate_To_Edit_Shift('${shift._id}')">Edit</button>`;
+
+
+        tr.appendChild(tdDate);
+        tr.appendChild(tdStartTime);
+        tr.appendChild(tdEndTime);
+        tr.appendChild(tdEditButton);
+
+        table.appendChild(tr);
+        
+    });
+    getEmployeesOnDropdown();
+      }
+
+
+      async function createShift() {
+        checkAuth();
+        const dateInput = document.getElementById("date").value;
+        const startingHourInput = document.getElementById("startingHour").value;
+        const endingHourInput = document.getElementById("endingHour").value;
+
+        // Validate input fields
+        if (!dateInput || !startingHourInput || !endingHourInput) {
+            alert("Please fill in all fields.");
+            return;
+        }
+
+        const [year, month, day] = dateInput.split("-");
+        const formattedDate = `${day}-${month}-${year}`;
+
+        try {
+            const response = await fetch("http://localhost:8000/shifts", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    date: formattedDate,
+                    startingHour: startingHourInput,
+                    endingHour: endingHourInput,
+                    employees: []
+                }),
+            });
+
+            if (response.ok) {
+                await minus_One_Action();
+                alert("Shift created successfully.");
+                getAllShifts();
+            } else {
+                alert("Failed to create shift.");
+            }
+        } catch (error) {
+            console.error(error);
+        }
+      }
+
+      async function navigate_To_Edit_Shift(shiftId) {
+        checkAuth()
+        sessionStorage.setItem("shift", shiftId);
+        window.location.href = "./9- edit_shifts.html";
+      }
+
+      
+
+    async function getEmployeesOnDropdown() {
+    const response = await fetch("http://localhost:8000/employees");
+    const employees = await response.json();
+    const dropdown = document.getElementById("myDropdown");
+
+    //clear the dropdown before appending new options
+    dropdown.innerHTML = `<option value="" disabled selected>Select employee</option>`;
+
+
+
+
+    employees.data.forEach((employee) => {
+        const option = document.createElement("option");
+        option.value = employee._id;
+        option.text = employee.name;
+        dropdown.appendChild(option);
+    });
+}
+
+
+
+async function navigate_To_Edit_Employees() {
+        checkAuth();
+        const employeeId = document.getElementById("myDropdown").value;
+        console.log(employeeId)
+        sessionStorage.setItem("employeeId", employeeId);
+        window.location.href = `./3- edit_employee.html`;
+      }
+
+    </script>
+  </body>
+</html>

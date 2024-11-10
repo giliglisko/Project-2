@@ -1,0 +1,63 @@
+<html>
+  <body onload="getUsers()">
+    <div style="width: 50%; margin: auto; background-color: #f0f0f0; padding: 20px;">
+      <div id="nameDiv"></div>
+      <table id="table" border="1"></table>
+    <script>
+      const nameDiv = document.getElementById("nameDiv");
+      const name = sessionStorage.getItem("name");
+      const actionsLeft = sessionStorage.getItem("actionsLeft");
+      nameDiv.innerHTML = `Welcome, ${name}. <button onclick="logout()">Logout</button>  
+      <button onclick="goToMainPage()">Main Page</button> <br/> Actions left: ${actionsLeft} <br/><br />`; 
+
+      function goToMainPage() {
+        window.location.href = "./1- login.html";
+      }
+
+      function checkAuth() {
+        const token = sessionStorage.getItem("access_token");
+        if (!token) {
+          window.location.href = "./1- login.html";
+        }
+      }
+      
+      async function logout() {
+        sessionStorage.removeItem("access_token");
+        sessionStorage.removeItem("name"); 
+        sessionStorage.removeItem("userId");
+        window.location.href = "./1- login.html";
+        alert("Logged out");
+      }
+
+      
+
+      async function getUsers() {
+    checkAuth(); 
+    const response = await fetch("http://localhost:8000/login/users");
+    const users = await response.json();
+
+    const table = document.getElementById("table");
+
+    // Clear the table before appending new rows
+    table.innerHTML = `<th>Full Name</th> <th>Actions Allowed</th> <th>Actions Left</th>`;
+    users.data.forEach((user) => {
+        const tr = document.createElement("tr");
+        const tdFullName = document.createElement("td");
+        const tdActionsAllowed = document.createElement("td");
+        const tdActionsLeft = document.createElement("td");
+
+        tdFullName.innerHTML = user.name;
+        tdActionsAllowed.innerHTML = user.numberOfActions;
+        tdActionsLeft.innerHTML = user.numberOfActionsLeft;
+
+        tr.appendChild(tdFullName);
+        tr.appendChild(tdActionsAllowed);
+        tr.appendChild(tdActionsLeft);
+
+        table.appendChild(tr);
+
+      })}
+    
+    </script>
+  </body>
+</html>

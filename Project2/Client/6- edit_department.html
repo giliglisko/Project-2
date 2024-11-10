@@ -1,0 +1,292 @@
+<html>
+  <body onload="unassignedEmployees(sessionStorage.getItem('department'))">
+    <div
+      style="width: 50%; margin: auto; background-color: #f0f0f0; padding: 20px"
+    >
+      <div id="nameDiv"></div>
+      <div id="department_Name_Div"></div>
+      <br>
+      <div>Edit department:</div>
+
+
+     <input id="departmentName" type="text" placeholder="Department Name" />
+      <br />
+    <input id="departmentManager" type="text" placeholder="Department Manager" />
+      <br>
+
+
+
+      
+        <button onclick="editDepartment()">Save</button>
+        <button onclick="deleteDepartment()">Delete Department</button> <br><br>
+        <label for="myDropdown">Add an employee to department:</label>
+        <select id="myDropdown" name="options">
+        <option value="" disabled selected>Select your option</option>
+        </select>
+        <button onclick="addEmployeeToDepartment()">Add</button>
+
+
+
+
+
+    <script>
+
+      const nameDiv = document.getElementById("nameDiv");
+      const name = sessionStorage.getItem("name");
+      const actionsLeft = sessionStorage.getItem("actionsLeft");
+      nameDiv.innerHTML = `Welcome, ${name}. <button onclick="logout()">Logout</button>  
+      <button onclick="goToMainPage()">Main Page</button> <br/> Actions left: ${actionsLeft} <br/><br />`; 
+
+
+      function goToMainPage() {
+        window.location.href = "./1- login.html";
+      }
+
+      function checkAuth() {
+        const token = sessionStorage.getItem("access_token");
+        if (!token) {
+          window.location.href = "./1- login.html";
+        }
+      }
+      
+      async function logout() {
+        sessionStorage.removeItem("access_token");
+        sessionStorage.removeItem("name"); 
+        sessionStorage.removeItem("userId");
+        window.location.href = "./1- login.html";
+        alert("Logged out");
+      }
+
+      async function forcelogout() {
+        sessionStorage.removeItem("access_token");
+        sessionStorage.removeItem("name");
+        sessionStorage.removeItem("userId");
+        window.location.href = "./1- login.html";
+        alert("Logged out");
+      }
+
+      async function minus_One_Action() {
+        const userId = sessionStorage.getItem("userId");
+        const response = await fetch(
+          `http://localhost:8000/login/users/${userId}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+        if (response.ok) {
+          const updatedUser = await response.json();
+          sessionStorage.setItem(
+            "actionsLeft",
+            updatedUser.data.numberOfActionsLeft
+          );
+          if (updatedUser.data.numberOfActionsLeft == 0) {
+            alert("You have no actions left. See you in 24 hours!.");
+            forcelogout();
+          }
+        } else {
+          console.error("Failed to update user actions");
+        }
+      }
+
+
+      async function editDepartment() {
+    checkAuth(); // Call authentication check first
+
+    const departmentId = sessionStorage.getItem("department");
+    const newDepartmentName = document.getElementById("departmentName").value;
+    const newDepartmentManager = document.getElementById("departmentManager").value;
+
+    // Validate input fields
+    if (!newDepartmentName || !newDepartmentManager) {
+        alert("Please fill all fields");
+        return;
+    }
+
+    try {
+        // Fetch employees 
+        const employeesResponse = await fetch("http://localhost:8000/employees");
+        const allEmployees = await employeesResponse.json();
+        const departmentsResponse = await fetch("http://localhost:8000/departments");
+        const allDepartments = await departmentsResponse.json();
+
+        // Validate manager
+        const manager = allEmployees.data.find(x => x.name === newDepartmentManager);
+        if (!manager) {
+            alert("Manager does not exist. Please check the name and try again.");
+            return;
+        }
+
+        // Make sure department name does not exist
+        if (allDepartments.data.find(x => x.name === newDepartmentName)) {
+            alert("Department name already exists. Please choose a different name.");
+            return;
+        }
+
+        // Get new manager ID
+        const newManagerId = manager._id;
+        console.log(newManagerId);
+
+        // Update the department
+        const updateResponse = await fetch(`http://localhost:8000/departments/${departmentId}`, {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                name: newDepartmentName,
+                manager: newManagerId,
+            }),
+        });
+
+        // Check for server error
+        if (!updateResponse.ok) {
+            const errorText = await updateResponse.text(); // Get detailed error message if available
+            console.error("Server responded with error:", errorText);
+            alert("Error updating department: " + errorText);
+            return;
+        }
+
+        const data = await updateResponse.json();
+        if (data.success) {
+            await minus_One_Action();
+            alert("Department updated");
+            window.location.href = "./5- departments.html";
+        } else {
+            alert("Error updating department");
+        }
+    } catch (error) {
+        console.error("Error in editDepartment:", error);
+        alert("An error occurred. Please try again.");
+    }
+}
+
+
+
+async function deleteDepartment() {
+    checkAuth(); // Call authentication check first
+    const userConfirmed = confirm(
+          "CAUTION: this will delete the department out of the system completely!"
+        );
+        if (!userConfirmed) {
+          return;
+        }
+
+    const departmentId = sessionStorage.getItem("department");
+
+    const response = await fetch(`http://localhost:8000/employees`);
+    const employees = await response.json();
+
+    //Delete employees that match departmentId
+    const employeesToDelete = employees.data.filter(x => x.department === departmentId);
+
+    console.log(employeesToDelete)
+
+    for (let i = 0; i < employeesToDelete.length; i++) {
+        const employeeId = employeesToDelete[i]._id;
+        const deleteResponse = await fetch(`http://localhost:8000/employees/${employeeId}`, {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                department: "None",
+            }),
+        });
+        if (!deleteResponse.ok) {
+            const errorText = await deleteResponse.text(); // Get detailed error message if available
+            console.error("Server responded with error:", errorText);
+            alert("Error deleting employee: " + errorText);
+            return;
+        }
+      
+      }
+
+
+        // Delete the department
+        const deleteResponse = await fetch(`http://localhost:8000/departments/${departmentId}`, {
+            method: "DELETE",
+        });
+
+        // Check for server error
+        if (!deleteResponse.ok) {
+            const errorText = await deleteResponse.text(); // Get detailed error message if available
+            console.error("Server responded with error:", errorText);
+            alert("Error deleting department: " + errorText);
+            return;
+        }
+
+        const data = await deleteResponse.json();
+        if (data.success) {
+            await minus_One_Action();     
+            alert("Department deleted");
+            window.location.href = "./5- departments.html";
+        } else {
+            alert("Error deleting department");
+        }
+
+
+      
+      }
+//show unassigned employees in dropdown menu 
+      async function unassignedEmployees(departmentId) {
+        
+        const response = await fetch("http://localhost:8000/employees");
+        const employees = await response.json();
+        const response2 = await fetch("http://localhost:8000/departments");
+        const departments = await response2.json();
+        const dropdown = document.getElementById("myDropdown");
+        const department_Name_Div = document.getElementById("department_Name_Div");
+        department_Name = departments.data.find(x => x._id === departmentId);
+        department_Name_Div.innerHTML = `Department: ${department_Name.name}`;
+        const unassignedEmployees = employees.data.filter(x => x.department !== departmentId);
+        console.log(unassignedEmployees)
+        unassignedEmployees.forEach((employee) => {
+          const option = document.createElement("option");
+          option.value = employee._id;
+          option.text = employee.name;
+          dropdown.appendChild(option);
+        });
+     
+      }
+
+      async function addEmployeeToDepartment() {
+        checkAuth(); // Call authentication check first
+        const departmentId = sessionStorage.getItem("department");
+        const employeeId = document.getElementById("myDropdown").value;
+        console.log(employeeId);
+        if (!employeeId) {
+          alert("Please select an employee");
+          return;
+        }
+        const response = await fetch(`http://localhost:8000/employees/${employeeId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            department: departmentId,
+          }),
+        });
+        if (!response.ok) {
+          const errorText = await response.text(); // Get detailed error message if available
+          console.error("Server responded with error:", errorText);
+          alert("Error adding employee to department: " + errorText);
+          return;
+        }
+        const data = await response.json();
+        if (data.success) {
+          await minus_One_Action();
+          alert("Employee added to department");
+          window.location.href = "./5- departments.html";
+        } else {
+          alert("Error adding employee to department");
+        }
+      }
+
+
+
+
+    </script>
+  </body>
+</html>

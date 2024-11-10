@@ -1,0 +1,143 @@
+<html>
+  <body onload="get_Managers()">
+    <div
+      style="width: 50%; margin: auto; background-color: #f0f0f0; padding: 20px"
+    >
+      <div id="nameDiv"></div>
+    Create a new department: <br />
+
+    <input type="text" id="name" placeholder="Department name" /> <br />
+    <select id="myDropdown" name="options">
+    <option value="" disabled selected>Select a manager</option>
+    </select>
+    <br>
+    <button onclick="navigate_To_Departments()">Cancel</button>
+    <button onclick="createDepartment()">Create</button>
+    <script>
+      const nameDiv = document.getElementById("nameDiv");
+      const name = sessionStorage.getItem("name");
+      const actionsLeft = sessionStorage.getItem("actionsLeft");
+      nameDiv.innerHTML = `Welcome, ${name}. <button onclick="logout()">Logout</button>  
+      <button onclick="goToMainPage()">Main Page</button> <br/> Actions left: ${actionsLeft} <br/><br />`; 
+
+      function goToMainPage() {
+        window.location.href = "./1- login.html";
+      }
+
+      function checkAuth() {
+        const token = sessionStorage.getItem("access_token");
+        if (!token) {
+          window.location.href = "./1- login.html";
+        }
+      }
+      async function forcelogout() {
+        sessionStorage.removeItem("access_token");
+        sessionStorage.removeItem("name");
+        sessionStorage.removeItem("userId");
+        window.location.href = "./1- login.html";
+        alert("Logged out");
+      }
+
+      async function minus_One_Action() {
+        const userId = sessionStorage.getItem("userId");
+        const response = await fetch(
+          `http://localhost:8000/login/users/${userId}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+        if (response.ok) {
+          const updatedUser = await response.json();
+          sessionStorage.setItem(
+            "actionsLeft",
+            updatedUser.data.numberOfActionsLeft
+          );
+          if (updatedUser.data.numberOfActionsLeft == 0) {
+            alert("You have no actions left. See you in 24 hours!.");
+            forcelogout();
+          }
+        } else {
+          console.error("Failed to update user actions");
+        }
+      }
+      
+      async function logout() {
+        sessionStorage.removeItem("access_token");
+        sessionStorage.removeItem("name"); 
+        sessionStorage.removeItem("userId");
+        window.location.href = "./1- login.html";
+        alert("Logged out");
+      }
+
+
+      async function get_Managers() {
+        checkAuth(); 
+
+        const response = await fetch("http://localhost:8000/employees");
+        const employees = await response.json();
+        const dropdown = document.getElementById("myDropdown");
+
+        employees.data.forEach((employee) => {
+        const option = document.createElement("option");
+        option.value = employee.name;
+        option.text = employee.name;
+        dropdown.appendChild(option);
+    });
+
+      }
+
+
+
+      async function createDepartment() {
+    const name = document.getElementById("name").value;
+    const manager = document.getElementById("myDropdown").value;
+
+    // Validate input fields
+    if (!name || !manager) {
+        alert("Please fill all fields");
+        return;
+    }
+
+    // Fetch the list of employees
+    const response = await fetch("http://localhost:8000/employees");
+    const employees = await response.json();
+
+    // Find the manager by name
+    const managerObject = employees.data.find((employee) => employee.name === manager);
+
+    // If the manager is not found, show an error message
+    if (!managerObject) {
+        alert("Manager not found");
+        return;
+    }
+
+    // Create a new department object
+    const department = {
+        name,
+        manager: managerObject._id,
+    };
+
+    // Send the new department object to the server
+    const response2 = await fetch("http://localhost:8000/departments", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(department),
+    });
+
+    // Check for server error
+    if (!response2.ok) {
+        alert("Server error. Please try again.");
+        return;
+    }
+
+    await minus_One_Action();
+    alert("Department created successfully");
+    window.location.href = "./5- departments.html";
+
+      }
+    </script>
+  </body>
+</html>

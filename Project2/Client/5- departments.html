@@ -1,0 +1,135 @@
+<html>
+  <body onload="getDepartments()">
+    <div
+      style="width: 50%; margin: auto; background-color: #f0f0f0; padding: 20px"
+    >
+      <div id="nameDiv"></div>
+      Departments: <br />
+      <table id="departments_Table" border="1">
+    
+      </table>
+
+      <br>
+      <br>
+      <button onclick="navigate_To_New_Department()">New Department</button>
+    <script>
+      const nameDiv = document.getElementById("nameDiv");
+      const name = sessionStorage.getItem("name");
+      const actionsLeft = sessionStorage.getItem("actionsLeft");
+      nameDiv.innerHTML = `Welcome, ${name}. <button onclick="logout()">Logout</button>  
+      <button onclick="goToMainPage()">Main Page</button> <br/> Actions left: ${actionsLeft} <br/><br />`; 
+
+
+      function goToMainPage() {
+        window.location.href = "./1- login.html";
+      }
+
+      function checkAuth() {
+        const token = sessionStorage.getItem("access_token");
+        if (!token) {
+          window.location.href = "./1- login.html";
+        }
+      }
+      
+      async function logout() {
+        sessionStorage.removeItem("access_token");
+        sessionStorage.removeItem("name"); 
+        sessionStorage.removeItem("userId");
+        window.location.href = "./1- login.html";
+        alert("Logged out");
+      }
+
+      async function forcelogout() {
+        sessionStorage.removeItem("access_token");
+        sessionStorage.removeItem("name");
+        sessionStorage.removeItem("userId");
+        window.location.href = "./1- login.html";
+        alert("Logged out");
+      }
+
+      async function minus_One_Action() {
+        const userId = sessionStorage.getItem("userId");
+        const response = await fetch(
+          `http://localhost:8000/login/users/${userId}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+        if (response.ok) {
+          const updatedUser = await response.json();
+          sessionStorage.setItem(
+            "actionsLeft",
+            updatedUser.data.numberOfActionsLeft
+          );
+          if (updatedUser.data.numberOfActionsLeft == 0) {
+            alert("You have no actions left. See you in 24 hours!.");
+            forcelogout();
+          }
+        } else {
+          console.error("Failed to update user actions");
+        }
+      }
+
+
+      async function getDepartments() {
+    checkAuth(); // Call authentication check first
+    const response = await fetch("http://localhost:8000/departments");
+    const departments = await response.json();
+    const response2 = await fetch("http://localhost:8000/employees");
+    const employees = await response2.json();
+    const table = document.getElementById("departments_Table");
+console.log(employees.data)
+
+    // Clear the table before appending new rows
+    table.innerHTML = `<th>Name</th> <th>Manager</th> <th>Employees</th>`; 
+
+    departments.data.forEach((department) => {
+        const tr = document.createElement("tr");
+        const tdName = document.createElement("td");
+        const tdManager = document.createElement("td");
+        const tdEmployees = document.createElement("td");
+
+        
+        tdName.innerHTML = `<a href="#" onclick="navigate_To_Edit_Departments('${department._id}')">${department.name}</a>`;
+// Find the manager in the employees list using the manager ID from the department object
+const manager = employees.data.find(employee => employee._id === department.manager);
+
+tdManager.innerHTML = manager
+    ? `<a href="#" onclick="navigate_To_Edit_Employees('${manager._id}')">${manager.name}</a>`
+    : "No manager found";
+        const employeesList = employees.data.filter(x => x.department === department._id)
+        tdEmployees.innerHTML = employeesList.map(x => x.name).join(", ");
+        
+       
+
+
+
+        tr.appendChild(tdName);
+        tr.appendChild(tdManager);
+        tr.appendChild(tdEmployees);
+
+        table.appendChild(tr);
+    })
+  }
+
+      async function navigate_To_Edit_Employees(employeeId) {
+        checkAuth();
+        sessionStorage.setItem("employeeId", employeeId);
+        window.location.href = `./3- edit_employee.html`;
+      }
+
+      async function navigate_To_Edit_Departments(department) {
+        console.log(department)
+        checkAuth();
+        sessionStorage.setItem("department", department);
+        window.location.href = `./6- edit_department.html`;
+      }
+
+      async function navigate_To_New_Department() {
+        checkAuth();
+        window.location.href = `./7- new_department.html`;
+      }
+    </script>
+  </body>
+</html>

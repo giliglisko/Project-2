@@ -1,0 +1,141 @@
+<html>
+  <body>
+    <div style="width: 50%; margin: auto; background-color: #f0f0f0; padding: 20px;">
+      <div id="nameDiv"></div>
+
+
+      <div>Edit shift:</div>
+      <br>
+      Date: <input id="date" type="date" placeholder="Date" />
+      <br>
+      Starting Hour: <input id="startingHour" type="time" placeholder="Starting Hour" />
+      <br>
+      Ending Hour: <input id="endingHour" type="time" placeholder="Ending Hour" />
+      <div id="shiftsDiv"></div>
+      <br>
+      <button onclick="navigate_To_Shifts()">Cancel</button>
+      <button onclick="editShift()">Save</button>
+
+
+
+
+    <script>
+       const nameDiv = document.getElementById("nameDiv");
+      const name = sessionStorage.getItem("name");
+      const actionsLeft = sessionStorage.getItem("actionsLeft");
+      nameDiv.innerHTML = `Welcome, ${name}. <button onclick="logout()">Logout</button>  
+      <button onclick="goToMainPage()">Main Page</button> <br/> Actions left: ${actionsLeft} <br/><br />`; 
+
+      function goToMainPage() {
+        window.location.href = "./1- login.html";
+      }
+
+      function checkAuth() {
+        const token = sessionStorage.getItem("access_token");
+        if (!token) {
+          window.location.href = "./1- login.html";
+        }
+      }
+      
+      async function logout() {
+        sessionStorage.removeItem("access_token");
+        sessionStorage.removeItem("name"); 
+        sessionStorage.removeItem("userId");
+        window.location.href = "./1- login.html";
+        alert("Logged out");
+      }
+
+      async function forcelogout() {
+        sessionStorage.removeItem("access_token");
+        sessionStorage.removeItem("name");
+        sessionStorage.removeItem("userId");
+        window.location.href = "./1- login.html";
+        alert("Logged out");
+      }
+
+      async function minus_One_Action() {
+        const userId = sessionStorage.getItem("userId");
+        const response = await fetch(
+          `http://localhost:8000/login/users/${userId}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+        if (response.ok) {
+          const updatedUser = await response.json();
+          sessionStorage.setItem(
+            "actionsLeft",
+            updatedUser.data.numberOfActionsLeft
+          );
+          if (updatedUser.data.numberOfActionsLeft == 0) {
+            alert("You have no actions left. See you in 24 hours!.");
+            forcelogout();
+          }
+        } else {
+          console.error("Failed to update user actions");
+        }
+      }
+
+
+      async function editShift() {
+
+   
+    checkAuth();
+    const shiftId = sessionStorage.getItem("shift");
+    
+    const dateInput = document.getElementById("date").value;
+    const startingHourInput = document.getElementById("startingHour").value;
+    const endingHourInput = document.getElementById("endingHour").value;
+
+    //validate inputs
+    if (!dateInput || !startingHourInput || !endingHourInput) {
+        alert("Please fill in all fields.");
+        return;
+    }
+
+    const [year, month, day] = dateInput.split("-");
+    const formattedDate = `${day}-${month}-${year}`;
+
+    try {
+        const getResponse = await fetch(`http://localhost:8000/shifts/${shiftId}`);
+        const shiftData = await getResponse.json();
+        
+        const response = await fetch(`http://localhost:8000/shifts/${shiftId}`, {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                date: formattedDate,
+                startingHour: startingHourInput,
+                endingHour: endingHourInput,
+                employees: shiftData.employees
+            }),
+        });
+
+        if (response.ok) {
+            await minus_One_Action();
+            alert("Shift updated successfully.");
+            navigate_To_Shifts();
+        } else {
+            console.error("Failed to update shift.");
+        }
+    } catch (error) {
+        console.error("Error:", error);
+    }
+}
+
+
+        
+        
+
+      async function navigate_To_Shifts() {
+        window.location.href = "./8- shifts.html";
+      }
+    
+
+  
+    </script>
+  </body>
+</html>

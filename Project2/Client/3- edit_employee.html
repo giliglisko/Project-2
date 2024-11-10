@@ -1,0 +1,361 @@
+<html>
+  <body onload='getEmployeeById(sessionStorage.getItem("employeeId"))'>
+    <div
+      style="width: 50%; margin: auto; background-color: #f0f0f0; padding: 20px"
+    >
+      <div id="nameDiv"></div>
+      <br />
+      Employee Details:
+      <table id="table" border="1"></table>
+      <br />
+      <br />
+      Employee Shifts:
+      <table id="shiftTable" border="1"></table>
+      <br />
+      <br />
+
+      Unassigned Shifts:
+      <table id="unassignedShiftsTable" border="1"></table>
+      <br />
+      <br />
+
+      <div style="padding-left: 80px">Edit Employee:</div>
+      <br />
+      Full Name:<input id="fullName" type="text" placeholder="Full Name" />
+      <br />
+
+      Starting Year:
+      <input id="startingYear" type="text" placeholder="Starting Year" />
+      <br />
+      <br />
+      <div style="padding-left: 70px">
+        <button onclick="editEmployee()">Save</button>
+        <button onclick='deleteEmployee(sessionStorage.getItem("employeeId"))'>
+          Delete Employee
+        </button>
+      </div>
+    </div>
+
+    <script>
+      const nameDiv = document.getElementById("nameDiv");
+      const name = sessionStorage.getItem("name");
+      const actionsLeft = sessionStorage.getItem("actionsLeft");
+      nameDiv.innerHTML = `Welcome, ${name}. <button onclick="logout()">Logout</button>  
+      <button onclick="goToMainPage()">Main Page</button> <br/> Actions left: ${actionsLeft} <br/><br />`;
+
+      function goToMainPage() {
+        window.location.href = "./1- login.html";
+      }
+
+      function checkAuth() {
+        const token = sessionStorage.getItem("access_token");
+        if (!token) {
+          window.location.href = "./1- login.html";
+        }
+      }
+      async function logout() {
+        sessionStorage.removeItem("access_token");
+        sessionStorage.removeItem("name");
+        sessionStorage.removeItem("userId");
+        window.location.href = "./1- login.html";
+        alert("Logged out");
+      }
+
+      async function forcelogout() {
+        sessionStorage.removeItem("access_token");
+        sessionStorage.removeItem("name");
+        sessionStorage.removeItem("userId");
+        window.location.href = "./1- login.html";
+        alert("Logged out");
+      }
+
+      async function minus_One_Action() {
+        const userId = sessionStorage.getItem("userId");
+        const response = await fetch(
+          `http://localhost:8000/login/users/${userId}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+        if (response.ok) {
+          const updatedUser = await response.json();
+          sessionStorage.setItem(
+            "actionsLeft",
+            updatedUser.data.numberOfActionsLeft
+          );
+          if (updatedUser.data.numberOfActionsLeft == 0) {
+            alert("You have no actions left. See you in 24 hours!.");
+            forcelogout();
+          }
+        } else {
+          console.error("Failed to update user actions");
+        }
+      }
+
+      async function getEmployeeById(id) {
+        checkAuth();
+        const response = await fetch(`http://localhost:8000/employees/${id}`);
+        const employee = await response.json();
+        const response2 = await fetch("http://localhost:8000/departments");
+        const departments = await response2.json();
+
+        const table = document.getElementById("table");
+        table.innerHTML = `<th>Full Name</th>
+      <th>Department</th>
+      <th>Starting Year</th>`;
+
+        const tr = document.createElement("tr");
+        const tdFullName = document.createElement("td");
+        const tdDepartment = document.createElement("td");
+        const tdStartingYear = document.createElement("td");
+
+        tdFullName.innerText = employee.data.name;
+
+        filterDepartment = departments.data.find(
+          (x) => x._id === employee.data.department
+        );
+
+        if (filterDepartment && filterDepartment.name) {
+          tdDepartment.innerHTML = `<a href="#" onclick="navigate_To_Edit_Departments('${filterDepartment._id}')">${filterDepartment.name}</a>`;
+        } else {
+          tdDepartment.innerHTML = "No department";
+        }
+
+        tdStartingYear.innerText = employee.data.startWorkYear;
+
+        tr.appendChild(tdFullName);
+        tr.appendChild(tdDepartment);
+        tr.appendChild(tdStartingYear);
+        table.appendChild(tr);
+        getEmployeeShifts(id);
+      }
+
+      async function editEmployee() {
+        const fullName = document.getElementById("fullName").value;
+        const startingYear = document.getElementById("startingYear").value;
+        if (fullName === "" || startingYear === "") {
+          alert("Please fill in all fields");
+          return;
+        }
+
+        const employee = {
+          name: fullName,
+          startWorkYear: startingYear,
+        };
+
+        const response = await fetch(
+          `http://localhost:8000/employees/${sessionStorage.getItem(
+            "employeeId"
+          )}`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(employee),
+          }
+        );
+
+        if (response.ok) {
+          await minus_One_Action();
+          getEmployeeById(sessionStorage.getItem("employeeId"));
+          alert("Employee info updated successfully");
+          window.location.href = "./2- employees.html";
+        } else {
+          alert("Failed to update employee info");
+        }
+      }
+
+      async function getEmployeeShifts(id) {
+        const response = await fetch(
+          `http://localhost:8000/shifts/employee/${id}`
+        );
+        const shifts = await response.json();
+
+        const shiftTable = document.getElementById("shiftTable");
+        shiftTable.innerHTML = `<th>Date</th><th>Starting Hour</th><th>Ending Hour</th><th>Unassign</th>`;
+        if (shifts.success === false) {
+          // No shifts found, display "None" and call getUnassignedShifts
+          console.log("NO SHIFTS!");
+          const tr = document.createElement("tr");
+          const tdNone = document.createElement("td");
+          tdNone.colSpan = 3; // Span across all columns
+          tdNone.innerText = "None";
+          tr.appendChild(tdNone);
+          shiftTable.appendChild(tr);
+
+          getUnassignedShifts(id);
+          return; // Exit the function
+        }
+
+        shifts.data.forEach((shift) => {
+          const tr = document.createElement("tr");
+          const tdDate = document.createElement("td");
+          const tdStartingHour = document.createElement("td");
+          const tdEndingHour = document.createElement("td");
+          const tdUnassignButton = document.createElement("td");
+
+          tdDate.innerText = shift.date;
+          tdStartingHour.innerText = shift.startingHour;
+          tdEndingHour.innerText = shift.endingHour;
+          tdUnassignButton.innerHTML = `<button onclick="unassignShift('${shift._id}')">Unassign</button>`;
+
+          tr.appendChild(tdDate);
+          tr.appendChild(tdStartingHour);
+          tr.appendChild(tdEndingHour);
+          tr.appendChild(tdUnassignButton);
+
+          shiftTable.appendChild(tr);
+        });
+
+        getUnassignedShifts(id);
+      }
+
+      async function deleteEmployee(id) {
+        const userConfirmed = confirm(
+          "CAUTION: this will delete the employee out of the system completely!"
+        );
+        if (!userConfirmed) {
+          return;
+        }
+
+        const response = await fetch(
+          `http://localhost:8000/shifts/employee/${id}`
+        );
+        const shifts = await response.json();
+
+        await Promise.all(
+          shifts.data.map(async (shift) => {
+            await fetch(`http://localhost:8000/shifts/${shift._id}`, {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ employee: null }),
+            });
+          })
+        );
+
+        const response3 = await fetch(
+          `http://localhost:8000/departments/manager/${id}`
+        );
+        const departments = await response3.json();
+
+        await Promise.all(
+          departments.data.map(async (department) => {
+            await fetch(`http://localhost:8000/departments/${department._id}`, {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ manager: null }),
+            });
+          })
+        );
+
+        await fetch(`http://localhost:8000/employees/${id}`, {
+          method: "DELETE",
+        });
+
+        window.location.href = "./2- employees.html";
+      }
+
+      async function getUnassignedShifts(id) {
+        const unassignedShiftsTable = document.getElementById(
+          "unassignedShiftsTable"
+        );
+        unassignedShiftsTable.innerHTML = `<th>Date</th><th>Starting Hour</th><th>Ending Hour</th><th>Assign</th>`;
+        const response = await fetch(`http://localhost:8000/shifts`);
+        const shifts = await response.json();
+
+        const filteredShifts = shifts.data.filter(
+          (shift) => !shift.employees.includes(id)
+        );
+
+        if (filteredShifts.length === 0) {
+          const tr = document.createElement("tr");
+          const tdNone = document.createElement("td");
+          tdNone.colSpan = 4;
+          tdNone.innerText = "None";
+          tr.appendChild(tdNone);
+          unassignedShiftsTable.appendChild(tr);
+        }
+
+        filteredShifts.forEach((shift) => {
+          const tr = document.createElement("tr");
+          const tdDate = document.createElement("td");
+          const tdStartingHour = document.createElement("td");
+          const tdEndingHour = document.createElement("td");
+          const tdAssignButton = document.createElement("td");
+
+          tdDate.innerText = shift.date;
+          tdStartingHour.innerText = shift.startingHour;
+          tdEndingHour.innerText = shift.endingHour;
+          tdAssignButton.innerHTML = `<button onclick="assignShift('${shift._id}')">Assign</button>`;
+
+          tr.appendChild(tdDate);
+          tr.appendChild(tdStartingHour);
+          tr.appendChild(tdEndingHour);
+          tr.appendChild(tdAssignButton);
+
+          unassignedShiftsTable.appendChild(tr);
+        });
+      }
+
+      async function assignShift(shiftId) {
+        const response = await fetch(
+          `http://localhost:8000/shifts/updateEmployee/${shiftId}`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              employeeId: sessionStorage.getItem("employeeId"),
+            }),
+          }
+        );
+
+        if (response.ok) {
+          await minus_One_Action();
+          alert("Shift assigned successfully");
+          location.reload();
+        } else {
+          console.error("Failed to assign shift");
+        }
+      }
+
+      async function unassignShift(shiftId) {
+        const employeeId = sessionStorage.getItem("employeeId");
+
+        const response = await fetch(
+          `http://localhost:8000/shifts/deleteEmployee/${shiftId}`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              employeeId: employeeId,
+            }),
+          }
+        );
+
+        if (response.ok) {
+          await minus_One_Action();
+          alert("Shift unassigned successfully");
+          location.reload();
+        } else {
+          console.error("Failed to unassign shift");
+        }
+      }
+
+      async function navigate_To_Edit_Departments(department) {
+        checkAuth();
+        sessionStorage.setItem("department", department);
+        window.location.href = `./6- edit_department.html`;
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,152 @@
+<html>
+  <body>
+    <div
+      style="width: 50%; margin: auto; background-color: #f0f0f0; padding: 20px"
+    >
+      <div id="nameDiv"></div>
+
+      <br />
+      <div id="loginFields">
+        Username:
+        <input id="username" type="text" placeholder="username" />
+        <br />
+        Email: <input id="email" type="text" placeholder="email" /> <br />
+        <button onclick="login()">Login</button>
+      </div>
+      <div id="navigationDiv"></div>
+    </div>
+
+    <script>
+      // Function to check if user is already authenticated on page load
+      function checkAuth() {
+        const accessToken = sessionStorage.getItem("access_token");
+        const userName = sessionStorage.getItem("name");
+        const actionsLeft = sessionStorage.getItem("actionsLeft");
+
+        if (accessToken) {
+          // User is authenticated, hide login fields and show welcome message and navigation
+          document.getElementById("loginFields").style.display = "none";
+          const nameDiv = document.getElementById("nameDiv");
+          const navigationDiv = document.getElementById("navigationDiv");
+          nameDiv.innerHTML = `Welcome, ${userName}. <button onclick="logout()">Logout</button> <br /> Actions left: ${actionsLeft} <br /><br />`;
+          navigationDiv.innerHTML = `
+            <button onclick="navigate_To_Employees()">Employees</button>
+            <button onclick="navigate_To_Departments()">Departments</button>
+            <button onclick="navigate_To_Shifts()">Shifts</button>
+            <button onclick="navigate_To_Users()">Users</button>
+          `;
+        }
+      }
+
+      async function login() {
+        try {
+          const username = document.getElementById("username").value;
+          const email = document.getElementById("email").value;
+          const nameDiv = document.getElementById("nameDiv");
+          const navigationDiv = document.getElementById("navigationDiv");
+
+          const resp = await fetch("http://localhost:8000/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, email }),
+          });
+
+          const data = await resp.json();
+          console.log(data);
+
+          if (data.success) {
+            sessionStorage.setItem("access_token", data.token);
+            sessionStorage.setItem("name", data.data.name);
+            sessionStorage.setItem("userId", data.data._id);
+            sessionStorage.setItem(
+              "actionsLeft",
+              data.data.numberOfActionsLeft
+            );
+            alert("Logged in");
+
+            // Hide login fields and show welcome message and navigation
+            document.getElementById("loginFields").style.display = "none";
+            nameDiv.innerHTML = `Welcome, ${data.data.name}. <button onclick="logout()">Logout</button> <br /> Actions left: ${data.data.numberOfActionsLeft} <br /><br />`;
+            navigationDiv.innerHTML = `
+                <br />
+                <br />
+                <button onclick="navigate_To_Employees()">Employees</button>
+                <button onclick="navigate_To_Departments()">Departments</button>
+                <button onclick="navigate_To_Shifts()">Shifts</button>
+                <button onclick="navigate_To_Users()">Users</button>
+            `;
+          } else {
+            alert(data.error); // Show the error from the backend
+          }
+        } catch (error) {
+          alert("Failed to login", error);
+          alert("An error occurred while logging in. Please try again later.");
+        }
+      }
+
+      async function logout() {
+        sessionStorage.removeItem("access_token");
+        sessionStorage.removeItem("name");
+        sessionStorage.removeItem("userId");
+        window.location.href = "./1- login.html";
+        alert("Logged out");
+      }
+
+      async function forcelogout() {
+        sessionStorage.removeItem("access_token");
+        sessionStorage.removeItem("name");
+        sessionStorage.removeItem("userId");
+        window.location.href = "./1- login.html";
+        alert("Logged out");
+      }
+
+      async function minus_One_Action() {
+        const userId = sessionStorage.getItem("userId");
+        const response = await fetch(
+          `http://localhost:8000/login/users/${userId}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+        if (response.ok) {
+          const updatedUser = await response.json();
+          sessionStorage.setItem(
+            "actionsLeft",
+            updatedUser.data.numberOfActionsLeft
+          );
+          if (updatedUser.data.numberOfActionsLeft == 0) {
+            alert("You have no actions left. See you in 24 hours!.");
+            forcelogout();
+          }
+        } else {
+          console.error("Failed to update user actions");
+        }
+      }
+
+      // Navigation functions
+      async function navigate_To_Employees() {
+        await minus_One_Action();
+        window.location.href = "./2- employees.html";
+      }
+
+      async function navigate_To_Departments() {
+        await minus_One_Action();
+        window.location.href = "./5- departments.html";
+      }
+
+      async function navigate_To_Shifts() {
+        await minus_One_Action();
+        window.location.href = "./8- shifts.html";
+      }
+
+      async function navigate_To_Users() {
+        await minus_One_Action();
+        window.location.href = "./10- users.html";
+      }
+
+      // Call checkAuth on page load
+      checkAuth();
+    </script>
+  </body>
+</html>

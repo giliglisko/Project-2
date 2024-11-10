@@ -1,0 +1,165 @@
+<html>
+  <body onload="getEmployees()">
+    <div style="width: 50%; margin: auto; background-color: #f0f0f0; padding: 20px;">
+    
+  
+    <div id="nameDiv"></div>
+    <table id="table" border="1">
+      <th>Full Name</th>
+      <th>Department</th>
+      <th>Shifts</th>
+      </div>
+    </table>
+<br>
+    <button onclick="navigate_To_New_Employee()">New Employee</button>
+    <script>
+     const nameDiv = document.getElementById("nameDiv");
+      const name = sessionStorage.getItem("name");
+      const actionsLeft = sessionStorage.getItem("actionsLeft");
+      nameDiv.innerHTML = `Welcome, ${name}. <button onclick="logout()">Logout</button>  
+      <button onclick="goToMainPage()">Main Page</button> <br/> Actions left: ${actionsLeft} <br/><br />`; 
+
+      function goToMainPage() {
+        window.location.href = "./1- login.html";
+      }
+
+      function checkAuth() {
+        const token = sessionStorage.getItem("access_token");
+        if (!token) {
+          window.location.href = "./1- login.html";
+        }
+      }
+
+      async function logout() {
+        sessionStorage.removeItem("access_token");
+        sessionStorage.removeItem("name"); 
+        sessionStorage.removeItem("userId");
+        window.location.href = "./1- login.html";
+        alert("Logged out");
+      }
+
+      async function forcelogout() {
+        sessionStorage.removeItem("access_token");
+        sessionStorage.removeItem("name");
+        sessionStorage.removeItem("userId");
+        window.location.href = "./1- login.html";
+        alert("Logged out");
+      }
+
+      async function minus_One_Action() {
+        const userId = sessionStorage.getItem("userId");
+        const response = await fetch(
+          `http://localhost:8000/login/users/${userId}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+        if (response.ok) {
+          const updatedUser = await response.json();
+          sessionStorage.setItem(
+            "actionsLeft",
+            updatedUser.data.numberOfActionsLeft
+          );
+          if (updatedUser.data.numberOfActionsLeft == 0) {
+            alert("You have no actions left. See you in 24 hours!.");
+            forcelogout();
+          }
+        } else {
+          console.error("Failed to update user actions");
+        }
+      }
+
+      async function getEmployees() {
+    checkAuth(); // Call authentication check first
+    const response = await fetch("http://localhost:8000/employees");
+    const employees = await response.json();
+    const response2 = await fetch("http://localhost:8000/shifts");
+    const shifts = await response2.json();
+    const response3 = await fetch("http://localhost:8000/departments");
+    const departments = await response3.json();
+    const table = document.getElementById("table");
+
+   
+
+    // Clear the table before appending new rows
+    table.innerHTML = `<th>Full Name</th>
+      <th>Department</th>
+      <th>Starting Year</th>
+      <th>Shifts</th>`;
+
+    employees.data.forEach((employee) => {
+        const tr = document.createElement("tr");
+        const tdFullName = document.createElement("td");
+        const tdDepartment = document.createElement("td");
+        const tdStartingYear = document.createElement("td");
+        const tdShifts = document.createElement("td");
+
+        // Employee name
+        tdFullName.innerHTML = `<a href="#" onclick="navigate_To_Edit_Employees('${employee._id}')">${employee.name}</a>`;
+       
+        filterDepartment = departments.data.find((x) => x._id === employee.department);
+
+   
+        
+
+        // Department name
+        if (filterDepartment && filterDepartment.name) {
+        tdDepartment.innerHTML = `<a href="#" onclick="navigate_To_Edit_Departments('${filterDepartment._id}')">${filterDepartment.name}</a>`;
+        } else {
+        tdDepartment.innerHTML = "No Department";
+        }
+        // Starting year
+        tdStartingYear.innerText = employee.startWorkYear;
+      
+
+        // Filter shifts by employee ID
+        const filteredShifts = shifts.data.filter(
+            (shift) => shift.employees.includes(employee._id)
+        );
+
+     
+        // Check if any shifts are found
+        if (filteredShifts.length > 0) {
+            tdShifts.innerText = filteredShifts
+                .map((shift) => `${shift.date} (${shift.startingHour} - ${shift.endingHour})`)
+                .join("\n");
+        } else {
+            tdShifts.innerText = "No Shifts Assigned"; // Default text if no shifts found
+        }
+
+        // Append the cells to the row
+        tr.appendChild(tdFullName);
+        tr.appendChild(tdDepartment);
+        tr.appendChild(tdStartingYear);
+        tr.appendChild(tdShifts);
+
+        // Append the row to the table
+        table.appendChild(tr);
+    });
+}
+
+
+      async function navigate_To_Edit_Employees(employeeId) {
+        checkAuth();
+        sessionStorage.setItem("employeeId", employeeId);
+        window.location.href = `./3- edit_employee.html`;
+      }
+
+      async function navigate_To_Edit_Departments(department) {
+        checkAuth();
+        sessionStorage.setItem("department", department);
+        window.location.href = `./6- edit_department.html`;
+      }
+
+      async function navigate_To_New_Employee() {
+        checkAuth();
+        window.location.href = `./4- new_employee.html`;
+      }
+
+
+
+
+    </script>
+  </body>
+</html>

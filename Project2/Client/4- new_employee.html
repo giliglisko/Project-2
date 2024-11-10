@@ -1,0 +1,136 @@
+<html>
+  <body>
+    <div
+      style="width: 50%; margin: auto; background-color: #f0f0f0; padding: 20px"
+    >
+      <div id="nameDiv"></div>
+    Create a new employee: <br />
+
+    <input type="text" id="name" placeholder="Full mame" /> <br />
+    <input type="text" id="startingYear" placeholder="Starting Year" /><br />
+    <input type="text" id="department" placeholder="Department" /><br />
+<button onclick="navigate_To_Employees()">Cancel</button>
+    <button onclick="createEmployee()">Create</button>
+    <script>
+      const nameDiv = document.getElementById("nameDiv");
+      const name = sessionStorage.getItem("name");
+      const actionsLeft = sessionStorage.getItem("actionsLeft");
+      nameDiv.innerHTML = `Welcome, ${name}. <button onclick="logout()">Logout</button>  
+      <button onclick="goToMainPage()">Main Page</button> <br/> Actions left: ${actionsLeft} <br/><br />`; 
+
+      function goToMainPage() {
+        window.location.href = "./1- login.html";
+      }
+
+      function checkAuth() {
+        const token = sessionStorage.getItem("access_token");
+        if (!token) {
+          window.location.href = "./1- login.html";
+        }
+      }
+      
+      async function logout() {
+        sessionStorage.removeItem("access_token");
+        sessionStorage.removeItem("name"); 
+        sessionStorage.removeItem("userId");
+        window.location.href = "./1- login.html";
+        alert("Logged out");
+      }
+
+      async function forcelogout() {
+        sessionStorage.removeItem("access_token");
+        sessionStorage.removeItem("name");
+        sessionStorage.removeItem("userId");
+        window.location.href = "./1- login.html";
+        alert("Logged out");
+      }
+
+      async function minus_One_Action() {
+        const userId = sessionStorage.getItem("userId");
+        const response = await fetch(
+          `http://localhost:8000/login/users/${userId}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+        if (response.ok) {
+          const updatedUser = await response.json();
+          sessionStorage.setItem(
+            "actionsLeft",
+            updatedUser.data.numberOfActionsLeft
+          );
+          if (updatedUser.data.numberOfActionsLeft == 0) {
+            alert("You have no actions left. See you in 24 hours!.");
+            forcelogout();
+          }
+        } else {
+          console.error("Failed to update user actions");
+        }
+      }
+
+
+
+      async function createEmployee() {
+    const name = document.getElementById("name").value;
+    const startingYear = document.getElementById("startingYear").value;
+    const department = document.getElementById("department").value;
+
+    // Validate input fields
+    if (!name || !startingYear || !department) {
+        alert("Please fill all fields");
+        return;
+    }
+
+    if (isNaN(startingYear)) {
+        alert("Starting year must be a number");
+        return;
+    }
+
+    // Fetch the list of departments
+    const response = await fetch("http://localhost:8000/departments");
+    const departments = await response.json();
+
+    // Find the department by name
+    let departmentData = departments.data.find((x) => x.name === department);
+
+    // Check if the department exists
+    if (!departmentData) {
+        alert("Department does not exist. Please check the name and try again.");
+        return; // Exit the function if department is not found
+    }
+
+    // Get the department ID
+    const departmentId = departmentData._id;
+
+    // Create the new employee
+    const response1 = await fetch("http://localhost:8000/employees", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            name: name,
+            startWorkYear: startingYear,
+            department: departmentId,
+        }),
+    });
+    const data = await response1.json();
+    if (data.success) {
+       await minus_One_Action();
+        alert("Employee created");
+        window.location.href = "./2- employees.html";
+    } else {
+        alert("Error");
+    }
+}
+
+   
+async function navigate_To_Employees() {
+  checkAuth()
+  window.location.href = "./2- employees.html";
+}
+
+    </script>
+  </body>
+</html>
